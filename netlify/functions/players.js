@@ -36,6 +36,8 @@ export const handler = async (event) => {
           manual_goals: p.manual_goals || 0,
           manual_assists: p.manual_assists || 0,
           manual_matches: p.manual_matches || 0,
+          is_mensalista: p.is_mensalista || false,
+          is_goleiro: p.is_goleiro || false,
         };
       });
 
@@ -75,6 +77,8 @@ export const handler = async (event) => {
         if (body.manual_goals !== undefined) players[idx].manual_goals = body.manual_goals;
         if (body.manual_assists !== undefined) players[idx].manual_assists = body.manual_assists;
         if (body.manual_matches !== undefined) players[idx].manual_matches = body.manual_matches;
+        if (body.is_mensalista !== undefined) players[idx].is_mensalista = body.is_mensalista;
+        if (body.is_goleiro !== undefined) players[idx].is_goleiro = body.is_goleiro;
       }
 
       await writeDB('players', players);

@@ -46,7 +46,7 @@ export const api = {
   getPlayer: (id: string) =>
     request<import('./types').PlayerWithStats>(`/players?id=${id}`),
 
-  updatePlayer: (playerId: string, data: { nickname?: string; self_rating?: number; manual_goals?: number; manual_assists?: number; manual_matches?: number }) =>
+  updatePlayer: (playerId: string, data: { nickname?: string; self_rating?: number; manual_goals?: number; manual_assists?: number; manual_matches?: number; is_mensalista?: boolean; is_goleiro?: boolean; }) =>
     request<import('./types').Player>('/players', {
       method: 'PUT',
       body: JSON.stringify({ playerId, ...data }),
@@ -123,5 +123,23 @@ export const api = {
     request<{ teams: import('./types').MatchTeam[] }>('/draw', {
       method: 'POST',
       body: JSON.stringify({ playerIds }),
+    }),
+
+  getAttendance: () =>
+    request<Record<string, { status: 'in' | 'out', updatedAt: string }>>('/attendance'),
+
+  setAttendance: (status: 'in' | 'out', playerId?: string) =>
+    request<Record<string, { status: 'in' | 'out', updatedAt: string }>>('/attendance', {
+      method: 'PUT',
+      body: JSON.stringify({ status, playerId }),
+    }),
+
+  getWeeklyConfig: () =>
+    request<{ dayOfWeek: string; time: string }>('/weekly-config'),
+
+  updateWeeklyConfig: (dayOfWeek: string, time: string) =>
+    request<{ dayOfWeek: string; time: string }>('/weekly-config', {
+      method: 'PUT',
+      body: JSON.stringify({ dayOfWeek, time }),
     }),
 };

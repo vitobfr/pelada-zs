@@ -8,6 +8,8 @@ export interface Player {
   manual_goals?: number;
   manual_assists?: number;
   manual_matches?: number;
+  is_mensalista?: boolean;
+  is_goleiro?: boolean;
 }
 
 export interface Rating {
@@ -58,6 +60,8 @@ export interface PlayerWithStats extends Player {
   avg_rating: number;
   matches_played: number;
   is_admin: boolean;
+  is_mensalista: boolean;
+  is_goleiro: boolean;
 }
 
 export interface RankingEntry {

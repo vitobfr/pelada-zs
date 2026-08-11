@@ -42,7 +42,7 @@ export default function Players() {
   });
 
   const updateStatsMutation = useMutation({
-    mutationFn: (data: { playerId: string; manual_goals: number; manual_assists: number; manual_matches: number }) => 
+    mutationFn: (data: { playerId: string; manual_goals?: number; manual_assists?: number; manual_matches?: number; is_mensalista?: boolean; is_goleiro?: boolean }) => 
       api.updatePlayer(data.playerId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['players'] });
@@ -142,6 +142,20 @@ export default function Players() {
                   onClick={() => openStatsEditor(p)}
                 >
                   ✏️ EDITAR STATS
+                </BrutalButton>
+                <BrutalButton 
+                  variant={p.is_mensalista ? "danger" : "primary"}
+                  className="text-xs py-1 px-3 flex-1"
+                  onClick={() => updateStatsMutation.mutate({ playerId: p.id, is_mensalista: !p.is_mensalista })}
+                >
+                  {p.is_mensalista ? 'REMOVER MENSALISTA' : '💎 TORNAR MENSALISTA'}
+                </BrutalButton>
+                <BrutalButton 
+                  variant={p.is_goleiro ? "danger" : "primary"}
+                  className="text-xs py-1 px-3 flex-1"
+                  onClick={() => updateStatsMutation.mutate({ playerId: p.id, is_goleiro: !p.is_goleiro })}
+                >
+                  {p.is_goleiro ? 'REMOVER GOLEIRO' : '🧤 TORNAR GOLEIRO'}
                 </BrutalButton>
                 {p.is_admin ? (
                   <BrutalButton 

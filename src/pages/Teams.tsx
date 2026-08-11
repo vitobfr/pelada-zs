@@ -33,7 +33,17 @@ export default function Teams() {
     queryFn: api.getPlayers,
   });
 
-  const loading = loadingMatches || loadingPlayers;
+  const { data: attendance = {}, isLoading: loadingAttendance } = useQuery({
+    queryKey: ['attendance'],
+    queryFn: api.getAttendance,
+  });
+
+  const { data: weeklyConfig, isLoading: loadingConfig } = useQuery({
+    queryKey: ['weeklyConfig'],
+    queryFn: api.getWeeklyConfig,
+  });
+
+  const loading = loadingMatches || loadingPlayers || loadingAttendance || loadingConfig;
 
   const [drawing, setDrawing] = useState(false);
   const [previewTeams, setPreviewTeams] = useState<MatchTeam[] | null>(null);
@@ -45,6 +55,27 @@ export default function Teams() {
   const [matchTime, setMatchTime] = useState(10);
   const [schedule, setSchedule] = useState<import('../lib/types').Game[]>([]);
 
+  // God Mode swap state
+  const [swapSource, setSwapSource] = useState<{ team: string; player_id: string } | null>(null);
+
+  // Weekly Config modal
+  const [configModal, setConfigModal] = useState(false);
+  const [dayOfWeek, setDayOfWeek] = useState('');
+  const [timeStr, setTimeStr] = useState('');
+
+  const updateConfigMutation = useMutation({
+    mutationFn: (data: { dayOfWeek: string; time: string }) => api.updateWeeklyConfig(data.dayOfWeek, data.time),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['weeklyConfig'] });
+      setConfigModal(false);
+    }
+  });
+
+  const setAttendanceMutation = useMutation({
+    mutationFn: (status: 'in' | 'out') => api.setAttendance(status),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['attendance'] })
+  });
+
   const togglePlayer = (id: string) => {
     const next = new Set(selectedPlayers);
     if (next.has(id)) next.delete(id);
@@ -53,7 +84,35 @@ export default function Teams() {
   };
 
   const openDrawModal = () => {
-    setSelectedPlayers(new Set(players.map(p => p.id)));
+    const selected = new Set<string>();
+    const linhaConfirmados: { id: string; time: number }[] = [];
+    const goleirosConfirmados: string[] = [];
+
+    players.forEach(p => {
+      const att = attendance[p.id];
+      const isOut = att?.status === 'out';
+      const isIn = att?.status === 'in';
+      
+      if (p.is_goleiro) {
+        if ((p.is_mensalista && !isOut) || isIn) goleirosConfirmados.push(p.id);
+      } else {
+        if (p.is_mensalista && !isOut) {
+          linhaConfirmados.push({ id: p.id, time: att ? new Date(att.updatedAt).getTime() : 0 });
+        } else if (isIn) {
+          linhaConfirmados.push({ id: p.id, time: new Date(att.updatedAt).getTime() });
+        }
+      }
+    });
+
+    // Sort linha by confirmation time
+    linhaConfirmados.sort((a, b) => a.time - b.time);
+    
+    // Select first 24 of linha
+    const linhaSelected = linhaConfirmados.slice(0, 24).map(x => x.id);
+    linhaSelected.forEach(id => selected.add(id));
+    goleirosConfirmados.forEach(id => selected.add(id));
+
+    setSelectedPlayers(selected);
     setDrawModal(true);
   };
 
@@ -128,11 +187,47 @@ export default function Teams() {
     createMatchMutation.mutate();
   };
 
-  const getPlayerName = (id: string) => {
+  const handlePlayerSwapClick = (teamName: string, playerId: string) => {
+    if (!isAdmin || !previewTeams) return;
+    
+    if (!swapSource) {
+      setSwapSource({ team: teamName, player_id: playerId });
+      return;
+    }
+
+    if (swapSource.player_id === playerId) {
+      setSwapSource(null); // toggle off
+      return;
+    }
+
+    // Perform swap
+    const newTeams = previewTeams.map(t => ({ ...t, player_ids: [...t.player_ids] }));
+    const t1 = newTeams.find(t => t.name === swapSource.team);
+    const t2 = newTeams.find(t => t.name === teamName);
+    
+    if (t1 && t2) {
+      const idx1 = t1.player_ids.indexOf(swapSource.player_id);
+      const idx2 = t2.player_ids.indexOf(playerId);
+      if (idx1 > -1 && idx2 > -1) {
+        t1.player_ids[idx1] = playerId;
+        t2.player_ids[idx2] = swapSource.player_id;
+        setPreviewTeams(newTeams);
+      }
+    }
+    setSwapSource(null);
+  };
+
+  const getPlayerName = (id: string, teamName?: string) => {
     const p = players.find(pl => pl.id === id);
     if (!p) return '?';
+    
+    const isSwapping = swapSource?.player_id === id;
+    
     return (
-      <div className="flex items-center gap-2">
+      <div 
+        className={`flex items-center gap-2 flex-1 ${teamName && isAdmin ? 'cursor-pointer hover:bg-brutal-yellow/20 p-1 -m-1 transition-colors' : ''} ${isSwapping ? 'bg-brutal-yellow border-2 border-brutal-black p-1 -m-1 animate-pulse' : ''}`}
+        onClick={() => teamName && isAdmin ? handlePlayerSwapClick(teamName, id) : undefined}
+      >
         {p.has_avatar ? (
           <Avatar id={p.id} className="w-8 h-8 object-cover border-2 border-brutal-black" />
         ) : (
@@ -140,7 +235,10 @@ export default function Teams() {
             {(p.nickname || p.username)[0]?.toUpperCase()}
           </div>
         )}
-        <span className="font-black uppercase tracking-widest">{p.nickname || p.username}</span>
+        <span className="font-black uppercase tracking-widest flex-1 truncate">
+          {p.nickname || p.username}
+          {p.is_goleiro && <span className="ml-2 text-[10px] bg-brutal-blue text-white px-1">🧤</span>}
+        </span>
       </div>
     );
   };
@@ -149,11 +247,62 @@ export default function Teams() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 className="font-display text-4xl font-black text-brutal-black uppercase tracking-tighter bg-brutal-yellow px-4 py-1 border-4 border-brutal-black inline-block shadow-brutal-sm -rotate-1">
           Escalação
         </h1>
+        {isAdmin && (
+          <BrutalButton 
+            variant="primary" 
+            onClick={() => {
+              setDayOfWeek(weeklyConfig?.dayOfWeek || 'Terça-feira');
+              setTimeStr(weeklyConfig?.time || '19:30');
+              setConfigModal(true);
+            }}
+          >
+            ⚙️ CONFIG. SEMANAL
+          </BrutalButton>
+        )}
       </div>
+
+      {weeklyConfig && (
+        <BrutalCard className="p-6 bg-brutal-blue border-brutal-black">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6 text-white">
+            <div>
+              <h2 className="font-black text-3xl uppercase tracking-widest mb-1 drop-shadow-[2px_2px_0_rgba(0,0,0,1)]">
+                Próxima Pelada
+              </h2>
+              <p className="text-xl font-bold uppercase tracking-widest bg-brutal-black px-2 py-1 inline-block">
+                {weeklyConfig.dayOfWeek} às {weeklyConfig.time}
+              </p>
+            </div>
+            
+            <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
+              <span className="font-black text-xl uppercase tracking-widest drop-shadow-[2px_2px_0_rgba(0,0,0,1)] text-center">
+                VOCÊ VAI?
+              </span>
+              <div className="flex gap-2 w-full sm:w-auto">
+                <BrutalButton 
+                  variant="primary" 
+                  className={`flex-1 sm:flex-none text-lg ${attendance[player?.id || '']?.status === 'in' ? 'bg-brutal-green text-brutal-black ring-4 ring-brutal-white' : 'opacity-70 hover:opacity-100'}`}
+                  onClick={() => setAttendanceMutation.mutate('in')}
+                  disabled={setAttendanceMutation.isPending}
+                >
+                  ✅ VOU
+                </BrutalButton>
+                <BrutalButton 
+                  variant="danger" 
+                  className={`flex-1 sm:flex-none text-lg ${attendance[player?.id || '']?.status === 'out' ? 'bg-brutal-red text-white ring-4 ring-brutal-white' : 'opacity-70 hover:opacity-100'}`}
+                  onClick={() => setAttendanceMutation.mutate('out')}
+                  disabled={setAttendanceMutation.isPending}
+                >
+                  ❌ NÃO VOU
+                </BrutalButton>
+              </div>
+            </div>
+          </div>
+        </BrutalCard>
+      )}
 
       {msg && (
         <div className={`p-4 border-4 border-brutal-black text-lg font-black uppercase tracking-widest flex items-center gap-2 shadow-brutal-sm ${
@@ -190,8 +339,8 @@ export default function Teams() {
                     <div className="space-y-2">
                       {team.player_ids.map((pid, idx) => (
                         <div key={pid} className="bg-brutal-white border-2 border-brutal-black p-2 flex items-center gap-2">
-                          <span className="text-brutal-black font-black w-4">{idx + 1}</span>
-                          {getPlayerName(pid)}
+                          <span className="text-brutal-black font-black w-4 flex-shrink-0 text-center">{idx + 1}</span>
+                          {getPlayerName(pid, team.name)}
                         </div>
                       ))}
                     </div>
@@ -284,7 +433,7 @@ export default function Teams() {
                         <div className="space-y-2">
                           {team.player_ids.map((pid, idx) => (
                             <div key={pid} className="bg-brutal-white border-2 border-brutal-black p-2 flex items-center gap-2">
-                              <span className="text-brutal-black font-black w-4">{idx + 1}</span>
+                              <span className="text-brutal-black font-black w-4 flex-shrink-0 text-center">{idx + 1}</span>
                               {getPlayerName(pid)}
                             </div>
                           ))}
@@ -364,35 +513,94 @@ export default function Teams() {
               <span className="bg-brutal-black text-brutal-white px-2 py-1 font-bold">{selectedPlayers.size} SELECIONADOS</span>
             </div>
             
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pb-4">
-              {players.map(p => {
-                const isSelected = selectedPlayers.has(p.id);
-                return (
-                  <button
-                    key={p.id}
-                    onClick={() => togglePlayer(p.id)}
-                    className={`flex items-center gap-3 border-4 border-brutal-black px-3 py-2 transition-all cursor-pointer text-left ${isSelected ? 'bg-brutal-green shadow-[4px_4px_0_0_black] hover:-translate-y-1 hover:shadow-[6px_6px_0_0_black]' : 'bg-brutal-bg opacity-50 grayscale hover:opacity-100 hover:grayscale-0'}`}
-                  >
-                    <div className={`w-6 h-6 border-2 border-brutal-black flex items-center justify-center ${isSelected ? 'bg-brutal-black text-brutal-white' : 'bg-white'}`}>
-                      {isSelected && '✓'}
-                    </div>
-                    {p.has_avatar ? (
-                      <Avatar id={p.id} className="w-10 h-10 object-cover border-2 border-brutal-black" />
-                    ) : (
-                      <div className="w-10 h-10 border-2 border-brutal-black bg-brutal-white flex items-center justify-center text-brutal-black font-black flex-shrink-0">
-                        {(p.nickname || p.username)[0]?.toUpperCase()}
+            <div className="flex flex-col gap-6 max-h-[60vh] overflow-y-auto pr-2 pb-4">
+              {/* Selecionados */}
+              <div>
+                <h4 className="font-black uppercase text-lg border-b-2 border-brutal-black mb-3">
+                  Na Quadra ({Array.from(selectedPlayers).filter(id => !players.find(p => p.id === id)?.is_goleiro).length}/24 Linha)
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {players.filter(p => selectedPlayers.has(p.id)).map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => togglePlayer(p.id)}
+                      className="flex items-center gap-2 border-2 border-brutal-black px-2 py-1 bg-brutal-green text-left shadow-[2px_2px_0_0_black]"
+                    >
+                      <div className="w-5 h-5 border-2 border-brutal-black bg-brutal-black text-white flex items-center justify-center text-xs">✓</div>
+                      {p.has_avatar ? (
+                        <Avatar id={p.id} className="w-8 h-8 object-cover border-2 border-brutal-black" />
+                      ) : (
+                        <div className="w-8 h-8 border-2 border-brutal-black bg-white flex items-center justify-center text-xs font-black">
+                          {(p.nickname || p.username)[0]?.toUpperCase()}
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1 truncate font-black text-sm uppercase">
+                        {p.nickname || p.username} {p.is_goleiro && '🧤'}
                       </div>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <div className="font-black text-brutal-black truncate uppercase">{p.nickname || p.username}</div>
-                      <div className="text-xs font-bold text-brutal-black bg-brutal-white inline-block px-1 border border-brutal-black">NVL: {p.avg_rating.toFixed(1)}</div>
-                    </div>
-                  </button>
-                );
-              })}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Fila de Espera / Restante */}
+              <div>
+                <h4 className="font-black uppercase text-lg border-b-2 border-brutal-black mb-3">
+                  Fila de Espera / Ausentes
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {players.filter(p => !selectedPlayers.has(p.id)).map(p => {
+                    const att = attendance[p.id]?.status;
+                    return (
+                      <button
+                        key={p.id}
+                        onClick={() => togglePlayer(p.id)}
+                        className="flex items-center gap-2 border-2 border-brutal-black px-2 py-1 bg-brutal-bg text-left hover:bg-brutal-yellow"
+                      >
+                        <div className="w-5 h-5 border-2 border-brutal-black bg-white text-xs"></div>
+                        {p.has_avatar ? (
+                          <Avatar id={p.id} className="w-8 h-8 object-cover border-2 border-brutal-black" />
+                        ) : (
+                          <div className="w-8 h-8 border-2 border-brutal-black bg-white flex items-center justify-center text-xs font-black">
+                            {(p.nickname || p.username)[0]?.toUpperCase()}
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1 truncate font-bold text-sm uppercase">
+                          {p.nickname || p.username} {p.is_goleiro && '🧤'}
+                          {att === 'in' && <span className="ml-1 text-[10px] bg-brutal-green px-1 border border-brutal-black">QUER IR</span>}
+                          {att === 'out' && <span className="ml-1 text-[10px] bg-brutal-red text-white px-1 border border-brutal-black">NÃO VAI</span>}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </div>
+          <Modal open={configModal} onClose={() => setConfigModal(false)} title="CONFIGURAÇÃO SEMANAL">
+        <div className="space-y-6">
+          <BrutalInput
+            label="DIA DA SEMANA"
+            value={dayOfWeek}
+            onChange={(e) => setDayOfWeek(e.target.value)}
+            placeholder="EX: Terça-feira"
+          />
+          <BrutalInput
+            type="time"
+            label="HORÁRIO"
+            value={timeStr}
+            onChange={(e) => setTimeStr(e.target.value)}
+          />
+          <BrutalButton
+            variant="primary"
+            className="w-full text-xl py-4"
+            onClick={() => updateConfigMutation.mutate({ dayOfWeek, time: timeStr })}
+            disabled={updateConfigMutation.isPending}
+          >
+            {updateConfigMutation.isPending ? 'SALVANDO...' : 'SALVAR'}
+          </BrutalButton>
         </div>
+      </Modal>
+    </div>
       </Modal>
     </div>
   );

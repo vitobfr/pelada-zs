@@ -29,12 +29,22 @@ export default function PlayerCard({ player, onRate, currentPlayerId, showRateBu
         </Link>
 
         <div className="flex-1 min-w-0">
-          <Link to={isSelf ? '/perfil' : `/perfil/${player.id}`} className="no-underline">
+          <Link to={isSelf ? '/perfil' : `/perfil/${player.id}`} className="no-underline flex flex-wrap items-center gap-2">
             <h3 className="font-extrabold text-brutal-black text-lg truncate group-hover:text-brutal-blue transition-colors">
               {player.nickname || player.username}
             </h3>
+            {player.is_mensalista && (
+              <span className="text-[10px] font-black bg-brutal-green text-brutal-black px-1.5 py-0.5 border border-brutal-black shadow-[2px_2px_0_0_black] tracking-widest uppercase">
+                💎 Mensalista
+              </span>
+            )}
+            {player.is_goleiro && (
+              <span className="text-[10px] font-black bg-brutal-blue text-brutal-white px-1.5 py-0.5 border border-brutal-black shadow-[2px_2px_0_0_black] tracking-widest uppercase">
+                🧤 Goleiro
+              </span>
+            )}
           </Link>
-          <p className="text-xs font-bold text-brutal-black/60 uppercase tracking-widest">@{player.username}</p>
+          <p className="text-xs font-bold text-brutal-black/60 uppercase tracking-widest mt-1">@{player.username}</p>
           <div className="flex items-center gap-2 mt-2">
             <StarRating value={Math.round(player.avg_rating)} readonly size="sm" />
             <span className="text-sm font-black text-brutal-black bg-brutal-yellow px-1.5 border border-brutal-black shadow-[1px_1px_0px_0px_black]">{player.avg_rating.toFixed(1)}</span>
