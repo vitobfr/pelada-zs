@@ -266,19 +266,19 @@ export default function Teams() {
       </div>
 
       {weeklyConfig && (
-        <BrutalCard className="p-6 bg-brutal-blue border-brutal-black">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6 text-white">
+        <BrutalCard className="p-6 border-brutal-black">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6 text-brutal-black">
             <div>
-              <h2 className="font-black text-3xl uppercase tracking-widest mb-1 drop-shadow-[2px_2px_0_rgba(0,0,0,1)]">
+              <h2 className="font-black text-3xl uppercase tracking-widest mb-1 drop-shadow-[2px_2px_0_white]">
                 Próxima Pelada
               </h2>
-              <p className="text-xl font-bold uppercase tracking-widest bg-brutal-black px-2 py-1 inline-block">
+              <p className="text-xl font-bold uppercase tracking-widest bg-brutal-black text-white px-2 py-1 inline-block">
                 {weeklyConfig.dayOfWeek} às {weeklyConfig.time}
               </p>
             </div>
             
             <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
-              <span className="font-black text-xl uppercase tracking-widest drop-shadow-[2px_2px_0_rgba(0,0,0,1)] text-center">
+              <span className="font-black text-xl uppercase tracking-widest drop-shadow-[2px_2px_0_white] text-center">
                 VOCÊ VAI?
               </span>
               <div className="flex gap-2 w-full sm:w-auto">
@@ -576,7 +576,10 @@ export default function Teams() {
               </div>
             </div>
           </div>
-          <Modal open={configModal} onClose={() => setConfigModal(false)} title="CONFIGURAÇÃO SEMANAL">
+        </div>
+      </Modal>
+
+      <Modal open={configModal} onClose={() => setConfigModal(false)} title="CONFIGURAÇÃO SEMANAL">
         <div className="space-y-6">
           <BrutalInput
             label="DIA DA SEMANA"
@@ -599,8 +602,6 @@ export default function Teams() {
             {updateConfigMutation.isPending ? 'SALVANDO...' : 'SALVAR'}
           </BrutalButton>
         </div>
-      </Modal>
-    </div>
       </Modal>
     </div>
   );
