@@ -50,7 +50,8 @@ export default function History() {
     if (match.schedule && match.schedule.length > 0) {
       match.schedule.forEach(game => {
         match.teams.forEach(team => {
-          if (team.name === game.team1 || team.name === game.team2) {
+          if (team.name === game.team1 || `Time ${team.name}` === game.team1 || team.name === `Time ${game.team1}` ||
+              team.name === game.team2 || `Time ${team.name}` === game.team2 || team.name === `Time ${game.team2}`) {
             team.player_ids.forEach(pid => {
               const stat = stats.find(s => s.match_id === match.id && s.game_id === game.id && s.player_id === pid);
               newEditStats[`${game.id}_${pid}`] = { goals: stat?.goals || 0, assists: stat?.assists || 0 };
@@ -91,7 +92,8 @@ export default function History() {
     if (match.schedule && match.schedule.length > 0) {
       match.schedule.forEach(game => {
         match.teams.forEach(team => {
-          if (team.name === game.team1 || team.name === game.team2) {
+          if (team.name === game.team1 || `Time ${team.name}` === game.team1 || team.name === `Time ${game.team1}` ||
+              team.name === game.team2 || `Time ${team.name}` === game.team2 || team.name === `Time ${game.team2}`) {
             team.player_ids.forEach(pid => {
               const e = editStats[`${game.id}_${pid}`];
               if (e && (e.goals > 0 || e.assists > 0)) {
@@ -126,7 +128,8 @@ export default function History() {
     
     const table: Record<string, { points: number, wins: number, draws: number, losses: number, gf: number, ga: number }> = {};
     match.teams.forEach(t => {
-      table[t.name] = { points: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0 };
+      const normalizedName = t.name.startsWith('Time ') ? t.name : `Time ${t.name}`;
+      table[normalizedName] = { points: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0 };
     });
 
     match.schedule.forEach(game => {
@@ -136,8 +139,11 @@ export default function History() {
         if (s.team === game.team2) g2 += s.goals;
       });
       
-      const t1 = table[game.team1];
-      const t2 = table[game.team2];
+      const team1Norm = game.team1.startsWith('Time ') ? game.team1 : `Time ${game.team1}`;
+      const team2Norm = game.team2.startsWith('Time ') ? game.team2 : `Time ${game.team2}`;
+      
+      const t1 = table[team1Norm];
+      const t2 = table[team2Norm];
       if (t1 && t2) {
         t1.gf += g1; t1.ga += g2;
         t2.gf += g2; t2.ga += g1;
@@ -246,12 +252,13 @@ export default function History() {
                                 </h4>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                   {[game.team1, game.team2].map(teamName => {
-                                    const team = match.teams.find(t => t.name === teamName);
+                                    const team = match.teams.find(t => t.name === teamName || `Time ${t.name}` === teamName || t.name === `Time ${teamName}`);
                                     if (!team) return null;
-                                    const style = teamStyles[team.name];
+                                    const normalizedName = team.name.startsWith('Time ') ? team.name : `Time ${team.name}`;
+                                    const style = teamStyles[normalizedName] || teamStyles['Time A'];
                                     return (
                                       <div key={team.name} className={`${style.bg} border-4 ${style.border} p-3`}>
-                                        <h5 className={`font-black text-lg mb-3 text-center ${style.text}`}>{team.name}</h5>
+                                        <h5 className={`font-black text-lg mb-3 text-center ${style.text}`}>{normalizedName}</h5>
                                         <div className="space-y-2">
                                           {team.player_ids.map(pid => (
                                             <div key={pid} className="flex items-center justify-between bg-brutal-white border-2 border-brutal-black p-2">
@@ -354,11 +361,11 @@ export default function History() {
                                     </div>
                                     <div className="flex-1 p-2 flex flex-col justify-center">
                                       <div className="flex items-center justify-between px-2 font-black text-sm uppercase mb-1">
-                                        <span className="flex items-center gap-2"><span className={`w-3 h-3 border-2 border-black ${teamStyles[game.team1]?.bg}`}></span> {game.team1}</span>
+                                        <span className="flex items-center gap-2"><span className={`w-3 h-3 border-2 border-black ${teamStyles[game.team1]?.bg || teamStyles[`Time ${game.team1}`]?.bg}`}></span> {game.team1}</span>
                                         <span className="text-xl">{g1}</span>
                                       </div>
                                       <div className="flex items-center justify-between px-2 font-black text-sm uppercase">
-                                        <span className="flex items-center gap-2"><span className={`w-3 h-3 border-2 border-black ${teamStyles[game.team2]?.bg}`}></span> {game.team2}</span>
+                                        <span className="flex items-center gap-2"><span className={`w-3 h-3 border-2 border-black ${teamStyles[game.team2]?.bg || teamStyles[`Time ${game.team2}`]?.bg}`}></span> {game.team2}</span>
                                         <span className="text-xl">{g2}</span>
                                       </div>
                                     </div>
@@ -370,10 +377,11 @@ export default function History() {
                         ) : (
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
                             {match.teams.map((team) => {
-                              const style = teamStyles[team.name] || teamStyles['Time A'];
+                              const normalizedName = team.name.startsWith('Time ') ? team.name : `Time ${team.name}`;
+                              const style = teamStyles[normalizedName] || teamStyles['Time A'];
                               return (
                                 <div key={team.name} className={`${style.bg} border-4 ${style.border} p-4 shadow-[4px_4px_0_0_black]`}>
-                                  <h4 className={`font-display font-black text-2xl mb-4 uppercase tracking-tighter ${style.text}`}>{team.name}</h4>
+                                  <h4 className={`font-display font-black text-2xl mb-4 uppercase tracking-tighter ${style.text}`}>{normalizedName}</h4>
                                   <div className="space-y-3">
                                     {team.player_ids.map(pid => {
                                       const stat = stats.find(s => s.match_id === match.id && s.player_id === pid);
